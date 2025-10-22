@@ -2,33 +2,63 @@
 // 🌸 ЦВЕТОЧНЫЙ МАГАЗИН - Telegram Mini App
 // =============================================
 
-// Инициализация Telegram Web App
-const tg = window.Telegram.WebApp;
+// Основные переменные
+let tg = null;
+let cart = [];
+let currentCategory = 'all';
 
-// Инициализируем приложение
-function initApp() {
-    // Раскрываем на весь экран
-    tg.expand();
+// Инициализация Telegram Mini App
+function initTelegramApp() {
+    // Проверяем, что мы в Telegram
+    if (window.Telegram && window.Telegram.WebApp) {
+        tg = window.Telegram.WebApp;
+        
+        // Инициализируем приложение
+        tg.ready();
+        tg.expand(); // Раскрываем на весь экран
+        tg.enableClosingConfirmation(); // Подтверждение закрытия
+        
+        // Настраиваем кнопку "Назад"
+        tg.BackButton.onClick(handleBackButton);
+        
+        console.log('🌸 Telegram Mini App инициализирован!');
+        console.log('Пользователь:', tg.initDataUnsafe?.user);
+        
+    } else {
+        console.log('🌸 Запущено в браузере, не в Telegram');
+        // Эмулируем некоторые функции для тестирования
+        tg = {
+            BackButton: {
+                show: () => console.log('BackButton show'),
+                hide: () => console.log('BackButton hide'),
+                onClick: (cb) => { window.backButtonCallback = cb; }
+            },
+            showPopup: (params) => {
+                alert(params.title + '\n' + params.message);
+            },
+            showAlert: (message) => {
+                alert(message);
+            },
+            HapticFeedback: {
+                impactOccurred: () => console.log('Haptic feedback')
+            },
+            openTelegramLink: (url) => {
+                window.open(url, '_blank');
+            }
+        };
+    }
     
-    // Включаем подтверждение закрытия
-    tg.enableClosingConfirmation();
-    
-    // Показываем кнопку "Назад"
-    tg.BackButton.show();
-    tg.BackButton.onClick(handleBackButton);
-    
-    // Загружаем данные
+    // Загружаем данные приложения
     loadProducts();
     setupCategoryTabs();
     updateCartDisplay();
-    
-    console.log('🌸 Цветочный магазин загружен!');
-    console.log('Пользователь:', tg.initDataUnsafe?.user);
 }
 
 // Обработчик кнопки "Назад"
 function handleBackButton() {
     if (isProductPageVisible()) {
+        showMainPage();
+    } else if (isOrderPageVisible()) {
         showMainPage();
     }
 }
@@ -36,6 +66,11 @@ function handleBackButton() {
 // Проверка видимости страницы товара
 function isProductPageVisible() {
     return !document.getElementById('productPage').classList.contains('hidden');
+}
+
+// Проверка видимости страницы заказа
+function isOrderPageVisible() {
+    return !document.getElementById('orderPage').classList.contains('hidden');
 }
 
 // Данные товаров
@@ -93,30 +128,8 @@ const products = [
         category: "mixed",
         emoji: "🎀",
         features: ["Отборные цветы", "Дизайнерская упаковка", "Персональная открытка"]
-    },
-    {
-        id: 7,
-        name: "Розовые пионы",
-        description: "7 пушистых пионов в нежных тонах",
-        price: 3800,
-        category: "mixed",
-        emoji: "🌺",
-        features: ["Нежный аромат", "Пышные бутоны", "В моде сезона"]
-    },
-    {
-        id: 8,
-        name: "Классические розы",
-        description: "15 алых роз классической формы",
-        price: 2900,
-        category: "roses",
-        emoji: "🌹",
-        features: ["Идеальная форма", "Длинный стебель", "Вечная классика"]
     }
 ];
-
-// Корзина и состояние приложения
-let cart = [];
-let currentCategory = 'all';
 
 // Загрузка товаров на главную страницу
 function loadProducts() {
@@ -182,9 +195,12 @@ function showProductDetail(productId) {
     // Переключаем страницы
     document.getElementById('mainPage').classList.add('hidden');
     document.getElementById('productPage').classList.remove('hidden');
+    document.getElementById('orderPage').classList.add('hidden');
     
-    // Показываем кнопку "Назад"
-    tg.BackButton.show();
+    // Показываем кнопку "Назад" в Telegram
+    if (tg && tg.BackButton) {
+        tg.BackButton.show();
+    }
     
     const detailContainer = document.getElementById('productDetail');
     detailContainer.innerHTML = `
@@ -214,11 +230,61 @@ function showProductDetail(productId) {
     `;
 }
 
+// Показать страницу заказа
+function showOrderPage() {
+    if (cart.length === 0) {
+        showNotification('🛒 Корзина пуста! Добавьте товары.');
+        return;
+    }
+    
+    // Переключаем страницы
+    document.getElementById('mainPage').classList.add('hidden');
+    document.getElementById('productPage').classList.add('hidden');
+    document.getElementById('orderPage').classList.remove('hidden');
+    
+    // Показываем кнопку "Назад" в Telegram
+    if (tg && tg.BackButton) {
+        tg.BackButton.show();
+    }
+    
+    // Заполняем страницу заказа
+    const orderItemsContainer = document.getElementById('orderItems');
+    const orderTotalContainer = document.getElementById('orderTotal');
+    
+    let orderHTML = '';
+    let total = 0;
+    
+    cart.forEach(item => {
+        const itemTotal = item.price * item.quantity;
+        total += itemTotal;
+        
+        orderHTML += `
+            <div class="order-item">
+                <div>
+                    <div style="font-weight: 500;">${item.name}</div>
+                    <div style="font-size: 14px; color: #666;">${item.price.toLocaleString()} ₽ × ${item.quantity}</div>
+                </div>
+                <div style="font-weight: bold; color: #e91e63;">
+                    ${itemTotal.toLocaleString()} ₽
+                </div>
+            </div>
+        `;
+    });
+    
+    orderItemsContainer.innerHTML = orderHTML;
+    orderTotalContainer.textContent = `Итого: ${total.toLocaleString()} ₽`;
+}
+
 // Вернуться на главную страницу
 function showMainPage() {
     document.getElementById('mainPage').classList.remove('hidden');
     document.getElementById('productPage').classList.add('hidden');
-    tg.BackButton.hide();
+    document.getElementById('orderPage').classList.add('hidden');
+    
+    // Скрываем кнопку "Назад" в Telegram
+    if (tg && tg.BackButton) {
+        tg.BackButton.hide();
+    }
 }
 
 // Добавление товара в корзину
@@ -238,8 +304,8 @@ function addToCart(productId) {
     
     updateCartDisplay();
     
-    // Тактильный отклик
-    if (tg.HapticFeedback) {
+    // Тактильный отклик в Telegram
+    if (tg && tg.HapticFeedback) {
         tg.HapticFeedback.impactOccurred('light');
     }
     
@@ -249,14 +315,20 @@ function addToCart(productId) {
 
 // Показать уведомление
 function showNotification(message) {
-    const notification = document.createElement('div');
-    notification.className = 'notification';
-    notification.textContent = message;
-    document.body.appendChild(notification);
-    
-    setTimeout(() => {
-        notification.remove();
-    }, 2000);
+    // В Telegram используем нативные уведомления
+    if (tg && tg.showAlert) {
+        tg.showAlert(message);
+    } else {
+        // В браузере показываем свое уведомление
+        const notification = document.createElement('div');
+        notification.className = 'notification';
+        notification.textContent = message;
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+            notification.remove();
+        }, 2000);
+    }
 }
 
 // Обновление отображения корзины
@@ -272,14 +344,10 @@ function updateCartDisplay() {
     checkoutBtn.disabled = totalCount === 0;
 }
 
-// Оформление заказа
-function checkout() {
+// Подтверждение заказа
+function confirmOrder() {
     if (cart.length === 0) {
-        tg.showPopup({
-            title: 'Корзина пуста',
-            message: 'Добавьте товары в корзину перед оформлением заказа',
-            buttons: [{ type: 'ok' }]
-        });
+        showNotification('Корзина пуста!');
         return;
     }
     
@@ -289,46 +357,56 @@ function checkout() {
     
     const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
     
-    // Создаем сообщение для отправки
-    const orderMessage = `💐 *Новый заказ из цветочного магазина*\\n\\n` +
-                        `${orderDetails}\\n\\n` +
-                        `*Итого:* ${total.toLocaleString()} ₽\\n\\n` +
-                        `_Для подтверждения заказа свяжитесь с клиентом_`;
+    const orderMessage = `💐 *Новый заказ из цветочного магазина*\n\n${orderDetails}\n\n*Итого:* ${total.toLocaleString()} ₽\n\n_Для подтверждения заказа свяжитесь с клиентом_`;
     
-    tg.showPopup({
-        title: '💐 Ваш заказ',
-        message: `Спасибо за выбор нашей цветочной лавки!\n\n${orderDetails}\n\nИтого: ${total.toLocaleString()} ₽\n\nДля завершения заказа наш менеджер свяжется с вами в течение 5 минут.`,
-        buttons: [
-            {
-                type: 'default',
-                text: '📞 Связаться с менеджером',
-                id: 'contact_manager'
-            },
-            {
-                type: 'destructive', 
-                text: '✏️ Изменить заказ',
-                id: 'cancel'
+    // Показываем подтверждение в Telegram
+    if (tg && tg.showPopup) {
+        tg.showPopup({
+            title: '✅ Заказ подтвержден!',
+            message: `Спасибо за заказ!\n\n${orderDetails}\n\nИтого: ${total.toLocaleString()} ₽\n\nНаш менеджер свяжется с вами в течение 5 минут для уточнения деталей.`,
+            buttons: [
+                {
+                    type: 'default',
+                    text: '📞 Связаться с менеджером',
+                    id: 'contact_manager'
+                },
+                {
+                    type: 'ok',
+                    text: 'Понятно',
+                    id: 'ok'
+                }
+            ]
+        });
+        
+        // Обработка действий в попапе
+        tg.onEvent('popupClosed', (data) => {
+            if (data.button_id === 'contact_manager') {
+                // Открываем чат с менеджером
+                tg.openTelegramLink('https://t.me/Nataliia_Nevzorova');
             }
-        ]
-    });
-    
-    // Обработка действий в попапе
-    const popupHandler = (data) => {
-        if (data.button_id === 'contact_manager') {
-            // Открываем чат с менеджером
-            tg.openTelegramLink('https://t.me/your_flower_manager');
+            // Очищаем корзину после заказа
+            cart = [];
+            updateCartDisplay();
+            showMainPage();
+        });
+    } else {
+        // Для браузера
+        const userConfirmed = confirm(`Ваш заказ:\n\n${orderDetails}\n\nИтого: ${total.toLocaleString()} ₽\n\nДля завершения заказа свяжитесь с менеджером: @your_flower_manager`);
+        
+        if (userConfirmed) {
+            window.open('https://t.me/Nataliia_Nevzorova', '_blank');
         }
-        tg.offEvent('popupClosed', popupHandler);
-    };
-    
-    tg.onEvent('popupClosed', popupHandler);
+        
+        // Очищаем корзину после заказа
+        cart = [];
+        updateCartDisplay();
+        showMainPage();
+    }
 }
 
-// Очистка корзины (для тестирования)
-function clearCart() {
-    cart = [];
-    updateCartDisplay();
-    showNotification('🛒 Корзина очищена');
+// Основная функция инициализации
+function initApp() {
+    initTelegramApp();
 }
 
 // =============================================
@@ -341,8 +419,8 @@ document.addEventListener('DOMContentLoaded', initApp);
 // Экспортируем функции для глобального доступа
 window.showProductDetail = showProductDetail;
 window.showMainPage = showMainPage;
+window.showOrderPage = showOrderPage;
 window.addToCart = addToCart;
-window.checkout = checkout;
-window.clearCart = clearCart;
+window.confirmOrder = confirmOrder;
 
-console.log('🌸 app.js загружен успешно!');
+console.log('🌸 Telegram Mini App загружен успешно!');
