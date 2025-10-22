@@ -52,6 +52,20 @@ function initTelegramApp() {
     loadProducts();
     setupCategoryTabs();
     updateCartDisplay();
+    setupDeliveryDate();
+}
+
+// Настройка минимальной даты доставки (сегодня + 1 день)
+function setupDeliveryDate() {
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    const minDate = tomorrow.toISOString().split('T')[0];
+    const dateInput = document.getElementById('deliveryDate');
+    if (dateInput) {
+        dateInput.min = minDate;
+    }
 }
 
 // Обработчик кнопки "Назад"
@@ -273,6 +287,9 @@ function showOrderPage() {
     
     orderItemsContainer.innerHTML = orderHTML;
     orderTotalContainer.textContent = `Итого: ${total.toLocaleString()} ₽`;
+    
+    // Очищаем ошибки при открытии формы
+    clearFormErrors();
 }
 
 // Вернуться на главную страницу
@@ -344,6 +361,88 @@ function updateCartDisplay() {
     checkoutBtn.disabled = totalCount === 0;
 }
 
+// Валидация формы
+function validateForm() {
+    let isValid = true;
+    clearFormErrors();
+    
+    // Проверка даты доставки
+    const deliveryDate = document.getElementById('deliveryDate').value;
+    if (!deliveryDate) {
+        showError('deliveryDate', 'dateError', 'Пожалуйста, выберите дату доставки');
+        isValid = false;
+    }
+    
+    // Проверка адреса доставки
+    const deliveryAddress = document.getElementById('deliveryAddress').value.trim();
+    if (!deliveryAddress) {
+        showError('deliveryAddress', 'addressError', 'Пожалуйста, укажите адрес доставки');
+        isValid = false;
+    }
+    
+    // Проверка телефона отправителя
+    const senderPhone = document.getElementById('senderPhone').value.trim();
+    if (!senderPhone) {
+        showError('senderPhone', 'senderPhoneError', 'Пожалуйста, укажите ваш телефон');
+        isValid = false;
+    }
+    
+    // Проверка имени отправителя
+    const senderName = document.getElementById('senderName').value.trim();
+    if (!senderName) {
+        showError('senderName', 'senderNameError', 'Пожалуйста, укажите ваше имя');
+        isValid = false;
+    }
+    
+    // Проверка имени получателя
+    const receiverName = document.getElementById('receiverName').value.trim();
+    if (!receiverName) {
+        showError('receiverName', 'receiverNameError', 'Пожалуйста, укажите имя получателя');
+        isValid = false;
+    }
+    
+    return isValid;
+}
+
+// Показать ошибку поля
+function showError(fieldId, errorId, message) {
+    const field = document.getElementById(fieldId);
+    const error = document.getElementById(errorId);
+    
+    field.classList.add('error');
+    error.textContent = message;
+    error.style.display = 'block';
+}
+
+// Очистить все ошибки
+function clearFormErrors() {
+    const errors = document.querySelectorAll('.error-message');
+    const inputs = document.querySelectorAll('.form-input');
+    
+    errors.forEach(error => error.style.display = 'none');
+    inputs.forEach(input => input.classList.remove('error'));
+}
+
+// Форматирование даты
+function formatDate(dateString) {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('ru-RU', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+    });
+}
+
+// Валидация и подтверждение заказа
+function validateAndConfirmOrder() {
+    if (!validateForm()) {
+        showNotification('❌ Пожалуйста, заполните все обязательные поля');
+        return;
+    }
+    
+    confirmOrder();
+}
+
 // Подтверждение заказа
 function confirmOrder() {
     if (cart.length === 0) {
@@ -351,19 +450,58 @@ function confirmOrder() {
         return;
     }
     
+    // Собираем данные формы
+    const formData = {
+        deliveryDate: document.getElementById('deliveryDate').value,
+        deliveryAddress: document.getElementById('deliveryAddress').value.trim(),
+        senderPhone: document.getElementById('senderPhone').value.trim(),
+        senderName: document.getElementById('senderName').value.trim(),
+        receiverPhone: document.getElementById('receiverPhone').value.trim(),
+        receiverName: document.getElementById('receiverName').value.trim(),
+        bouquetWishes: document.getElementById('bouquetWishes').value.trim(),
+        cardMessage: document.getElementById('cardMessage').value.trim()
+    };
+    
     const orderDetails = cart.map(item => 
         `• ${item.name} x${item.quantity} - ${(item.price * item.quantity).toLocaleString()} ₽`
     ).join('\n');
     
     const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
     
-    const orderMessage = `💐 *Новый заказ из цветочного магазина*\n\n${orderDetails}\n\n*Итого:* ${total.toLocaleString()} ₽\n\n_Для подтверждения заказа свяжитесь с клиентом_`;
+    // Формируем сообщение для менеджера
+    const orderMessage = 
+        `💐 *НОВЫЙ ЗАКАЗ ИЗ ЦВЕТОЧНОГО МАГАЗИНА*\n\n` +
+        `*📦 Состав заказа:*\n${orderDetails}\n\n` +
+        `*💰 Итого:* ${total.toLocaleString()} ₽\n\n` +
+        `*🚚 Данные доставки:*\n` +
+        `📅 Дата: ${formatDate(formData.deliveryDate)}\n` +
+        `📍 Адрес: ${formData.deliveryAddress}\n\n` +
+        `*👤 Отправитель:*\n` +
+        `📞 Телефон: ${formData.senderPhone}\n` +
+        `👤 Имя: ${formData.senderName}\n\n` +
+        `*🎯 Получатель:*\n` +
+        `📞 Телефон: ${formData.receiverPhone || formData.senderPhone}\n` +
+        `👤 Имя: ${formData.receiverName}\n\n` +
+        `*💌 Дополнительно:*\n` +
+        `Пожелания к букету: ${formData.bouquetWishes || 'не указаны'}\n` +
+        `Текст открытки: ${formData.cardMessage || 'не указан'}\n\n` +
+        `_Для связи с клиентом используйте телефон отправителя_`;
+    
+    // Сообщение для клиента
+    const clientMessage = 
+        `✅ *Ваш заказ подтвержден!*\n\n` +
+        `Спасибо за заказ в нашей цветочной лавке! 🌸\n\n` +
+        `*Детали заказа:*\n${orderDetails}\n\n` +
+        `*Итого:* ${total.toLocaleString()} ₽\n\n` +
+        `*Доставка:* ${formatDate(formData.deliveryDate)}\n` +
+        `*Адрес:* ${formData.deliveryAddress}\n\n` +
+        `Наш менеджер свяжется с вами в течение 5 минут для подтверждения заказа.`;
     
     // Показываем подтверждение в Telegram
     if (tg && tg.showPopup) {
         tg.showPopup({
             title: '✅ Заказ подтвержден!',
-            message: `Спасибо за заказ!\n\n${orderDetails}\n\nИтого: ${total.toLocaleString()} ₽\n\nНаш менеджер свяжется с вами в течение 5 минут для уточнения деталей.`,
+            message: clientMessage,
             buttons: [
                 {
                     type: 'default',
@@ -382,8 +520,13 @@ function confirmOrder() {
         tg.onEvent('popupClosed', (data) => {
             if (data.button_id === 'contact_manager') {
                 // Открываем чат с менеджером
-                tg.openTelegramLink('https://t.me/Nataliia_Nevzorova');
+                // ЗАМЕНИТЕ НА РЕАЛЬНЫЙ USERNAME МЕНЕДЖЕРА
+                tg.openTelegramLink('https://t.me/your_flower_manager');
             }
+            
+            // Отправляем данные менеджеру (в реальном приложении это будет API запрос)
+            sendOrderToManager(orderMessage);
+            
             // Очищаем корзину после заказа
             cart = [];
             updateCartDisplay();
@@ -391,36 +534,6 @@ function confirmOrder() {
         });
     } else {
         // Для браузера
-        const userConfirmed = confirm(`Ваш заказ:\n\n${orderDetails}\n\nИтого: ${total.toLocaleString()} ₽\n\nДля завершения заказа свяжитесь с менеджером: @your_flower_manager`);
+        alert(clientMessage + '\n\nСообщение для менеджера:\n' + orderMessage);
         
-        if (userConfirmed) {
-            window.open('https://t.me/Nataliia_Nevzorova', '_blank');
-        }
-        
-        // Очищаем корзину после заказа
-        cart = [];
-        updateCartDisplay();
-        showMainPage();
-    }
-}
-
-// Основная функция инициализации
-function initApp() {
-    initTelegramApp();
-}
-
-// =============================================
-// 🚀 ЗАПУСК ПРИЛОЖЕНИЯ
-// =============================================
-
-// Ждем загрузки DOM
-document.addEventListener('DOMContentLoaded', initApp);
-
-// Экспортируем функции для глобального доступа
-window.showProductDetail = showProductDetail;
-window.showMainPage = showMainPage;
-window.showOrderPage = showOrderPage;
-window.addToCart = addToCart;
-window.confirmOrder = confirmOrder;
-
-console.log('🌸 Telegram Mini App загружен успешно!');
+        //
