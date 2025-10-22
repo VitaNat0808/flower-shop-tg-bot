@@ -260,6 +260,38 @@
             from { top: -50px; opacity: 0; }
             to { top: 20px; opacity: 1; }
         }
+
+        /* Стили для страницы заказа */
+        .order-page {
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .order-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .order-item:last-child {
+            border-bottom: none;
+        }
+        
+        .order-total {
+            font-size: 20px;
+            font-weight: bold;
+            color: #e91e63;
+            text-align: center;
+            margin: 20px 0;
+            padding: 16px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
     </style>
 </head>
 <body>
@@ -288,6 +320,19 @@
             <button class="back-button" onclick="showMainPage()">← Назад к каталогу</button>
             <div id="productDetail"></div>
         </div>
+        
+        <!-- Страница заказа -->
+        <div id="orderPage" class="hidden">
+            <button class="back-button" onclick="showMainPage()">← Назад к каталогу</button>
+            <div class="order-page">
+                <h2 style="margin-bottom: 20px; text-align: center;">📦 Ваш заказ</h2>
+                <div id="orderItems"></div>
+                <div class="order-total" id="orderTotal">0 ₽</div>
+                <button class="checkout-btn" style="width: 100%; padding: 16px; font-size: 16px;" onclick="confirmOrder()">
+                    ✅ Подтвердить заказ
+                </button>
+            </div>
+        </div>
     </div>
     
     <!-- Корзина -->
@@ -299,7 +344,7 @@
             </span>
             <span id="cartTotal">0 ₽</span>
         </div>
-        <button class="checkout-btn" id="checkoutBtn" onclick="checkout()">
+        <button class="checkout-btn" id="checkoutBtn" onclick="showOrderPage()">
             Оформить заказ
         </button>
     </div>
